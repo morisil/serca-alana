@@ -1,11 +1,15 @@
+import dev.vishna.watchservice.asWatchChannel
+import kotlinx.coroutines.channels.consumeEach
 import org.openrndr.Program
 import org.openrndr.application
 import org.openrndr.draw.*
 import org.openrndr.extra.olive.Olive
 import org.openrndr.ffmpeg.PlayMode
 import org.openrndr.ffmpeg.VideoPlayerFFMPEG
+import org.openrndr.launch
 import org.openrndr.math.IntVector2
 import org.openrndr.math.Vector2
+import java.io.File
 
 /*
  before running the program you need to install v4l2loopback, on ubuntu do:
@@ -19,52 +23,64 @@ import org.openrndr.math.Vector2
  or even restarting the system
  */
 fun main() = application {
-    // values should be adjusted according to your system
-    // $ v4l2-ctl --list-devices
-    val cameraDevice = "/dev/video4"
-    val virtualCameraDevice = "/dev/video6"
-    /*
-     the resolution of your physical camera, possibilities can be obtained with:
+  // values should be adjusted according to your system
+  // $ v4l2-ctl --list-devices
+  val cameraDevice = "/dev/video4"
+  val virtualCameraDevice = "/dev/video6"
+  /*
+   the resolution of your physical camera, possibilities can be obtained with:
 
-     $ ffmpeg -f v4l2 -list_formats all -i /dev/video4
-     */
-    val cameraWidth = 800
-    val cameraHeight = 448
+   $ ffmpeg -f v4l2 -list_formats all -i /dev/video4
+   */
+  val cameraWidth = 800
+  val cameraHeight = 448
 
-    val virtualCameraWidth = 1920
-    val virtualCameraHeight = 1080
+  val virtualCameraWidth = 1920
+  val virtualCameraHeight = 1080
 
-    // application becomes the preview window
-    configure {
-        width = virtualCameraWidth
-        height = virtualCameraHeight
-        hideWindowDecorations = true
-        // my second preview screen is below my main screen
-        position = IntVector2(0, 1920)
+  // application becomes the preview window
+  configure {
+    width = virtualCameraWidth
+    height = virtualCameraHeight
+    hideWindowDecorations = true
+    // my second preview screen is below my main screen
+    position = IntVector2(0, 1920)
+  }
+
+  program(LiveCodingCameraProgram()) {
+    font = loadFont("data/fonts/IBMPlexMono-Regular.ttf", 32.0)
+    realCamera = VideoPlayerFFMPEG.fromDevice(
+        cameraDevice,
+        PlayMode.VIDEO,
+        imageWidth = cameraWidth,
+        imageHeight = cameraHeight
+    )
+    virtualCameraBuffer = colorBuffer(width, height, format = ColorFormat.RGB, type = ColorType.UINT8)
+    virtualCameraBuffer.flipV = true
+    shader = Filter(watcher = filterWatcherFromUrl("file:src/main/resources/camera.frag"))
+    shader.parameters["resolution"] = Vector2(width.toDouble(), height.toDouble())
+
+    realCamera.play()
+
+    launch {
+      watchChannel.consumeEach { _ ->
+        code = ktsFile.readText()
+      }
     }
 
-    program(LiveCodingCameraProgram()) {
-        realCamera = VideoPlayerFFMPEG.fromDevice(
-            cameraDevice,
-            PlayMode.VIDEO,
-            imageWidth = cameraWidth,
-            imageHeight = cameraHeight
-        )
-        virtualCameraBuffer = colorBuffer(width, height, format = ColorFormat.RGB, type = ColorType.UINT8)
-        virtualCameraBuffer.flipV = true
-        shader = Filter(watcher = filterWatcherFromUrl( "file:src/main/resources/camera.frag"))
-        shader.parameters["resolution"] = Vector2(width.toDouble(), height.toDouble())
-
-        realCamera.play()
-
-        extend(V4l2Recorder(virtualCameraDevice))
-        //extend(AkvcamRecorder(virtualCameraDevice))
-        extend(Olive<Program>())
-    }
+    extend(V4l2Recorder(virtualCameraDevice))
+    extend(Olive<Program>())
+  }
 }
 
 class LiveCodingCameraProgram : Program() {
-    lateinit var realCamera: VideoPlayerFFMPEG
-    lateinit var virtualCameraBuffer: ColorBuffer
-    lateinit var shader: Filter
+  lateinit var realCamera: VideoPlayerFFMPEG
+  lateinit var virtualCameraBuffer: ColorBuffer
+  lateinit var shader: Filter
+  lateinit var font: FontImageMap
+  val ktsFile = File("src/main/kotlin/AppMainV2.kts")
+  val watchChannel = ktsFile.asWatchChannel()
+  var code: String = ""
+// once you no longer need this channel, make sure you close it
+//    watchChannel.close()
 }

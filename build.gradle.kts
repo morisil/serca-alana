@@ -101,6 +101,7 @@ repositories {
         mavenLocal()
     }
     maven(url = "https://dl.bintray.com/openrndr/openrndr")
+    maven("https://jitpack.io")
 }
 
 fun DependencyHandler.orx(module: String): Any {
@@ -139,6 +140,8 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx", "kotlinx-coroutines-core","1.3.5")
     implementation("io.github.microutils", "kotlin-logging","1.7.9")
+
+    implementation("com.github.vishna:watchservice-ktx:master-SNAPSHOT")
 
     when(applicationLogging) {
         Logging.NONE -> {
