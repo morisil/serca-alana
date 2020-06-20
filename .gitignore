@@ -1,0 +1,9 @@
+/build
+/out
+/.idea
+/.gradle
+
+/application.log
+/ffmpegOutput.txt
+/ShaderError.txt
+/hs_err_pid*
